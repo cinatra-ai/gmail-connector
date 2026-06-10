@@ -271,6 +271,31 @@ export function getStoredGmailSendAsAddresses(userId?: string) {
   };
 }
 
+// Chat user-context provider record for the host's generic capability
+// registry (capability id "chat-user-context"). The CONNECTOR owns the
+// section formatting; the chat runner just appends whatever the live
+// providers return — it no longer imports this package by name. Registered
+// at serverEntry activation (`register.ts`) and, transitionally, by the
+// host's boot bridge; both registrations carry this record's packageName, so
+// the registry idempotently dedupes. Structurally typed on purpose (no SDK
+// type import needed — the host SDK contract is additive and lands with the
+// host-side consumer): `{ packageName, impl: { buildSections } }`.
+// `buildSections` is cheap + local by contract: it reads the already-synced
+// send-as store; no network.
+export const gmailChatUserContextProvider = {
+  packageName: "@cinatra-ai/gmail-connector",
+  impl: {
+    buildSections({ userId }: { userId?: string }): string[] {
+      const { aliases } = getStoredGmailSendAsAddresses(userId);
+      if (aliases.length === 0) return [];
+      const list = aliases
+        .map((a) => (a.displayName ? `${a.displayName} <${a.email}>` : a.email))
+        .join(", ");
+      return [`Gmail send-as addresses: ${list}`];
+    },
+  },
+};
+
 export async function clearStoredGmailSendAsAddresses() {
   writeSettings({});
 }
