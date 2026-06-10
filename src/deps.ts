@@ -111,18 +111,27 @@ export interface GmailConnectorDeps {
   requireSessionUserId: () => Promise<string>;
 }
 
-let _deps: GmailConnectorDeps | null = null;
+// Anchor the deps slot on `globalThis` via a namespaced+versioned Symbol so the
+// activation-time registration (the connector's serverEntry `register(ctx)`,
+// loaded in the instrumentation compilation) and the runtime callers — which
+// live in SEPARATELY-COMPILED Next.js bundles that never import the registrar
+// (route handlers, server actions, the BullMQ worker bundle) — resolve the
+// SAME slot. A module-local binding would leave those bundles' instance
+// unregistered → getGmailDeps() would throw. (Same cross-compilation reason as
+// the apify/apollo/gemini/tailscale deps slots + the SDK DI contracts.)
+const GMAIL_DEPS_KEY = Symbol.for("@cinatra-ai/gmail-connector:host-deps/v1");
+type DepsHolder = { [k: symbol]: GmailConnectorDeps | null | undefined };
+const _holder = globalThis as unknown as DepsHolder;
 
 /**
- * Wire the host's runtime dependencies into the gmail connector. Call
- * exactly once at boot (e.g. from `src/lib/register-transport-connectors.ts`
- * which is itself imported by `src/instrumentation.node.ts`).
+ * Wire the host's runtime dependencies into the gmail connector. Called once
+ * at activation (the connector's serverEntry `register(ctx)`).
  *
  * Re-calling replaces the previous wiring — tests can use this to swap in
  * stubs between `describe` blocks.
  */
 export function registerGmailConnector(deps: GmailConnectorDeps): void {
-  _deps = deps;
+  _holder[GMAIL_DEPS_KEY] = deps;
 }
 
 /**
@@ -131,19 +140,20 @@ export function registerGmailConnector(deps: GmailConnectorDeps): void {
  * registration is always a boot-wiring bug.
  */
 export function getGmailDeps(): GmailConnectorDeps {
-  if (!_deps) {
+  const deps = _holder[GMAIL_DEPS_KEY];
+  if (!deps) {
     throw new Error(
       "@cinatra-ai/gmail-connector: host runtime deps not registered. " +
-        "Call registerGmailConnector(deps) at boot (typically from " +
-        "src/lib/register-transport-connectors.ts).",
+        "The connector's serverEntry register(ctx) binds them at activation " +
+        "(tests: call registerGmailConnector(stubDeps) in setup).",
     );
   }
-  return _deps;
+  return deps;
 }
 
 /**
  * @internal Only for tests — clear deps so a fresh registration is required.
  */
 export function _resetGmailDepsForTests(): void {
-  _deps = null;
+  _holder[GMAIL_DEPS_KEY] = null;
 }

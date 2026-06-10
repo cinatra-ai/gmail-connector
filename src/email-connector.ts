@@ -29,6 +29,7 @@ import { gmailAPIConnector } from "./definition";
 import {
   findGmailReplyInThread,
   getGmailConnectorStatus,
+  getStoredGmailSendAsAddresses,
   sendGmailMessage,
 } from "./index";
 
@@ -54,9 +55,21 @@ async function getStatus(opts?: {
   return getGmailConnectorStatus(opts?.userId);
 }
 
+// OPTIONAL contract method: the per-user "send-as" aliases this mailbox can
+// send from. Consumed registration-driven (e.g. HITL schema enrichment asks
+// every `email-send` provider that implements it) — the host never imports
+// this package for alias data.
+async function listFromAddresses(opts?: {
+  userId?: string;
+}): Promise<Array<{ email: string; displayName?: string }>> {
+  const { aliases } = getStoredGmailSendAsAddresses(opts?.userId);
+  return (aliases ?? []).map((a) => ({ email: a.email, displayName: a.displayName }));
+}
+
 export const gmailEmailConnector: EmailConnector = {
   definition: gmailAPIConnector,
   send,
   findReply,
   getStatus,
+  listFromAddresses,
 };
