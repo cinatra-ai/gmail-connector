@@ -27,7 +27,10 @@ import type {
 } from "@cinatra-ai/sdk-extensions";
 import { registerGmailConnector, type GmailConnectorDeps } from "./deps";
 import { gmailEmailConnector } from "./email-connector";
-import { refreshUserGmailSendAsAddresses } from "./index";
+import {
+  gmailChatUserContextProvider,
+  refreshUserGmailSendAsAddresses,
+} from "./index";
 
 const PACKAGE_NAME = "@cinatra-ai/gmail-connector";
 
@@ -96,6 +99,16 @@ export function register(ctx: ExtensionHostContext): void {
     packageName: PACKAGE_NAME,
     impl: gmailEmailConnector,
   });
+
+  // Chat user-context: contributes the user's verified send-as addresses to
+  // the chat system prompt, registration-driven (the chat runner resolves
+  // this capability instead of importing this package by name). The record
+  // carries this package's name, so the host's transitional boot-bridge
+  // registration of the SAME record idempotently collapses with this one.
+  ctx.capabilities.registerProvider(
+    "chat-user-context",
+    gmailChatUserContextProvider,
+  );
 
   // Post-save hook for the host's nango connection-save route: when a gmail
   // user-scope connection is saved, refresh that user's send-as aliases.
