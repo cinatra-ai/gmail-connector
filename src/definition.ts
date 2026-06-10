@@ -12,4 +12,8 @@ export const gmailAPIConnector: EmailConnectorDefinition = {
   supportsOAuth: true,
   supportsApiKey: true,
   supportsCustomFrom: true,
+  // Gmail is a PER-USER mailbox connection — eligible for the host's
+  // per-user active-connector resolution (and excluded from being auto-picked
+  // as an instance-level transport). See EmailConnectorDefinition.connectionScope.
+  connectionScope: "user",
 };
