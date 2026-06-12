@@ -8,27 +8,55 @@
  * (src/lib/trigger-email-send-use-cases.ts:124 returning sendGmailMessage as
  * the sendEmail dep, and the gmail_email_send MCP handler) are safe.
  *
- * The test mocks readConnectorConfigFromDatabase so we can flip the dev mode
- * setting without a real database. We assert applyDevelopmentRecipientOverride
- * behavior via a probe wrapper since the function is module-private.
+ * The runtime reads the dev-mode setting through the connector's host-deps
+ * slot (`getGmailDeps().readConnectorConfigFromDatabase` — bound from the
+ * `@cinatra-ai/host:connector-config` service by register(ctx)), so the test
+ * stubs the deps slot via `registerGmailConnector(stubDeps)` instead of
+ * mocking the host-internal `@/lib/database` module (cinatra#172 Stage H1:
+ * the connector tree carries no `@/` import). We assert
+ * applyDevelopmentRecipientOverride behavior via a probe wrapper since the
+ * function is module-private; the probe resolves the SAME deps slot the
+ * implementation in src/index.ts resolves.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-vi.mock("@/lib/database", () => ({
-  readConnectorConfigFromDatabase: vi.fn(),
-  writeConnectorConfigToDatabase: vi.fn(),
-}));
+import {
+  getGmailDeps,
+  registerGmailConnector,
+  _resetGmailDepsForTests,
+  type GmailConnectorDeps,
+} from "../deps";
 
-import { readConnectorConfigFromDatabase } from "@/lib/database";
+const readConfigMock = vi.fn();
+
+function stubDeps(): GmailConnectorDeps {
+  return {
+    readConnectorConfigFromDatabase: readConfigMock as never,
+    writeConnectorConfigToDatabase: vi.fn(),
+    nango: {
+      getPrimarySavedConnection: vi.fn(() => null),
+      clearConnectionRecords: vi.fn(async () => undefined),
+    },
+    oauth: {
+      getStatus: vi.fn(async () => ({ status: "not_connected" as const })),
+      apiFetch: vi.fn(async () => {
+        throw new Error("not wired in this test");
+      }) as never,
+      refreshAccessTokenIfNeeded: vi.fn(async () => ({ accessToken: "t" })),
+    },
+    requireSessionUserId: vi.fn(async () => "user-1"),
+  };
+}
 
 // Simulate the override function via the documented config-key contract.
-// Mirrors the implementation in packages/connector-gmail/src/index.ts.
+// Mirrors the implementation in src/index.ts
+// (applyDevelopmentRecipientOverride), including its deps-slot resolution.
 function applyDevRedirectProbe(message: {
   to: string[];
   cc?: string[];
   bcc?: string[];
 }): typeof message {
-  const settings = vi.mocked(readConnectorConfigFromDatabase)(
+  const settings = getGmailDeps().readConnectorConfigFromDatabase(
     "email-system-development",
     {},
   ) as { developmentModeEnabled?: boolean; overrideRecipientEmail?: string };
@@ -45,10 +73,12 @@ function applyDevRedirectProbe(message: {
 describe("connector-gmail dev recipient override", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    _resetGmailDepsForTests();
+    registerGmailConnector(stubDeps());
   });
 
   it("passes through unchanged when dev mode disabled", () => {
-    vi.mocked(readConnectorConfigFromDatabase).mockReturnValue({
+    readConfigMock.mockReturnValue({
       developmentModeEnabled: false,
     });
     const result = applyDevRedirectProbe({
@@ -60,7 +90,7 @@ describe("connector-gmail dev recipient override", () => {
   });
 
   it("rewrites to/cc/bcc when dev mode enabled with override email", () => {
-    vi.mocked(readConnectorConfigFromDatabase).mockReturnValue({
+    readConfigMock.mockReturnValue({
       developmentModeEnabled: true,
       overrideRecipientEmail: "dev@example.com",
     });
@@ -75,7 +105,7 @@ describe("connector-gmail dev recipient override", () => {
   });
 
   it("throws when dev mode enabled but no override configured", () => {
-    vi.mocked(readConnectorConfigFromDatabase).mockReturnValue({
+    readConfigMock.mockReturnValue({
       developmentModeEnabled: true,
       overrideRecipientEmail: "  ", // whitespace-only is treated as empty
     });
@@ -86,10 +116,11 @@ describe("connector-gmail dev recipient override", () => {
 
   it("dev mode key is the same key written by saveEmailSystemDevelopmentSettings", () => {
     // Documents the contract that the connector reads the same config key
-    // the admin form writes (src/lib/email-system.ts uses the same key).
-    vi.mocked(readConnectorConfigFromDatabase).mockReturnValue({});
+    // the admin form writes (the host's email-system settings page writes
+    // the same "email-system-development" connector-config key).
+    readConfigMock.mockReturnValue({});
     applyDevRedirectProbe({ to: ["x@y.com"] });
-    expect(readConnectorConfigFromDatabase).toHaveBeenCalledWith(
+    expect(readConfigMock).toHaveBeenCalledWith(
       "email-system-development",
       {},
     );
