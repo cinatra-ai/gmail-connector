@@ -31,6 +31,7 @@ import { registerGmailConnector, type GmailConnectorDeps } from "./deps";
 import { gmailEmailConnector } from "./email-connector";
 import {
   gmailChatUserContextProvider,
+  gmailSenderIdentitiesProvider,
   refreshUserGmailSendAsAddresses,
 } from "./index";
 
@@ -118,6 +119,15 @@ export function register(ctx: ExtensionHostContext): void {
   ctx.capabilities.registerProvider(
     "chat-user-context",
     gmailChatUserContextProvider,
+  );
+
+  // Structured sender identities for the host's HITL field-renderer context
+  // (cinatra#151 Stage 4): the packages/agents loader resolves
+  // `email-sender-identities` instead of value-importing
+  // getStoredGmailSendAsAddresses. Cheap + local (already-synced store).
+  ctx.capabilities.registerProvider(
+    "email-sender-identities",
+    gmailSenderIdentitiesProvider,
   );
 
   // Post-save hook for the host's nango connection-save route: when a gmail

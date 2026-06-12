@@ -296,6 +296,30 @@ export const gmailChatUserContextProvider = {
   },
 };
 
+// Email-sender-identities provider record (capability id
+// "email-sender-identities", cinatra#151 Stage 4): the STRUCTURED counterpart
+// of the chat-user-context contribution above. The host's HITL
+// field-renderer-context loader (packages/agents server action) resolves the
+// live providers and aggregates per-app sender identities instead of
+// value-importing this package's `getStoredGmailSendAsAddresses`. The `app`
+// discriminator is the provider-agnostic app slug ("gmail" — NOT a package
+// name); `getSenderIdentities` is cheap + local by contract (reads the
+// already-synced send-as store; no network). Structurally typed on purpose
+// (no SDK type import needed — the host SDK contract is additive and lands
+// with the host-side consumer).
+export const gmailSenderIdentitiesProvider = {
+  packageName: "@cinatra-ai/gmail-connector",
+  impl: {
+    app: "gmail",
+    getSenderIdentities({ userId }: { userId?: string }): GmailSendAsAlias[] {
+      const { aliases } = getStoredGmailSendAsAddresses(userId);
+      return aliases.map((a) =>
+        a.displayName ? { email: a.email, displayName: a.displayName } : { email: a.email },
+      );
+    },
+  },
+};
+
 export async function clearStoredGmailSendAsAddresses() {
   writeSettings({});
 }

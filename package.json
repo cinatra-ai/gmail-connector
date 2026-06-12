@@ -56,6 +56,9 @@
     ],
     "dependencies": [],
     "serverEntry": "./register",
-    "sdkAbiRange": "^2"
+    "sdkAbiRange": "^2",
+    "facadePrimitives": [
+      "email_send"
+    ]
   }
 }
