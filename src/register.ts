@@ -3,8 +3,10 @@
 // Transport-registration cutover: the host no longer statically imports `registerGmailConnector` — this
 // entry binds the connector's host deps AT ACTIVATION by adapting the
 // per-concern host services published in the capability registry
-// (`@cinatra-ai/host:*` — connector-config, nango connection-storage,
-// google-oauth) plus the granted `ctx.authSession` port. Every adapter field
+// (`@cinatra-ai/host:*` — connector-config, google-oauth) plus the
+// connector-authored `nango-system` surface (the legacy
+// `@cinatra-ai/host:nango-connection-storage` adapter id is retired —
+// cinatra#151 Stage 3) and the granted `ctx.authSession` port. Every adapter field
 // resolves the host service LAZILY at call time, so activation order against
 // the host's boot imports never matters.
 //
@@ -22,8 +24,8 @@ import "server-only";
 import type {
   ExtensionHostContext,
   HostConnectorConfigService,
-  HostNangoConnectionStorageService,
   HostGoogleOAuthService,
+  NangoSystemSurface,
 } from "@cinatra-ai/sdk-extensions";
 import { registerGmailConnector, type GmailConnectorDeps } from "./deps";
 import { gmailEmailConnector } from "./email-connector";
@@ -41,7 +43,7 @@ function hostService<T>(ctx: ExtensionHostContext, capability: string): T {
   if (!provider) {
     throw new Error(
       `${PACKAGE_NAME}: host service "${capability}" is not registered — ` +
-        `the host boot wiring (register-transport-connectors) must run before connector calls.`,
+        `the host boot wiring (register-host-connector-services) must run before connector calls.`,
     );
   }
   return provider.impl as T;
@@ -50,11 +52,19 @@ function hostService<T>(ctx: ExtensionHostContext, capability: string): T {
 function buildDeps(ctx: ExtensionHostContext): GmailConnectorDeps {
   const config = () =>
     hostService<HostConnectorConfigService>(ctx, "@cinatra-ai/host:connector-config");
-  const nango = () =>
-    hostService<HostNangoConnectionStorageService>(
-      ctx,
-      "@cinatra-ai/host:nango-connection-storage",
-    );
+  // The connector-authored nango-system surface (registered by the nango
+  // gateway's own register(ctx) — a systemExtension, required at boot).
+  const nango = (): NangoSystemSurface => {
+    const provider = ctx.capabilities.resolveProviders("nango-system")[0];
+    const surface = provider?.impl as NangoSystemSurface | undefined;
+    if (!surface || typeof surface.isNangoConfigured !== "function") {
+      throw new Error(
+        `${PACKAGE_NAME}: the "nango-system" capability surface is not registered — ` +
+          `resolve at call time (post-activation), never at module eval.`,
+      );
+    }
+    return surface;
+  };
   const oauth = () =>
     hostService<HostGoogleOAuthService>(ctx, "@cinatra-ai/host:google-oauth");
 
@@ -65,9 +75,9 @@ function buildDeps(ctx: ExtensionHostContext): GmailConnectorDeps {
       config().write(connectorId, value),
     nango: {
       getPrimarySavedConnection: (connectorKey, opts) =>
-        nango().getPrimarySavedConnection(connectorKey, opts),
+        nango().getPrimarySavedNangoConnection(connectorKey, opts),
       clearConnectionRecords: (connectorKey, opts) =>
-        nango().clearConnectionRecords(connectorKey, opts) as Promise<unknown>,
+        nango().clearNangoConnectionRecords(connectorKey, opts) as Promise<unknown>,
     },
     oauth: {
       getStatus: () =>
