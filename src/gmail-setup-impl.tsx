@@ -5,6 +5,7 @@ import { Main, PageHeader, PageContent } from "@cinatra-ai/sdk-ui/marketplace";
 import { NangoUserConnectButton } from "@cinatra-ai/sdk-ui/marketplace";
 import { getStoredGmailSendAsAddresses } from "@cinatra-ai/gmail-connector";
 import { refreshGmailSendAsAddressesAction } from "./actions";
+import { getGmailDeps } from "./deps";
 import { Alert, AlertDescription } from "./components/ui/alert";
 import { Button } from "./components/ui/button";
 
@@ -41,6 +42,18 @@ export async function GmailConnectorPageImpl(props: GmailConnectorPageImplProps)
   const gmailSettings = getStoredGmailSendAsAddresses(actor.userId);
   const connection =
     (await props.ctx.nango.getPrimarySavedConnections?.({ scope: "user", userId: actor.userId }))?.gmail ?? null;
+
+  // Connecting Gmail requires the shared Google OAuth client (clientId +
+  // secret, configured in the google-oauth connector) to exist first. Read the
+  // connector-level status directly (deps.oauth.getStatus reports "connected"
+  // once the client is configured, independent of any user connection). Fail
+  // OPEN if the host google-oauth service is unavailable.
+  let oauthConfigured = true;
+  try {
+    oauthConfigured = (await getGmailDeps().oauth.getStatus()).status === "connected";
+  } catch {
+    oauthConfigured = true;
+  }
   // Suppress the "authorization expired" error once the user has successfully reconnected,
   // since router.refresh() re-renders with the same ?error= URL param still present.
   const visibleError = connection && error?.includes("authorization expired") ? undefined : error;
@@ -78,8 +91,37 @@ export async function GmailConnectorPageImpl(props: GmailConnectorPageImplProps)
             connectLabel="Connect Gmail"
             reconnectLabel="Reconnect"
             nangoFrontendConfig={nangoFrontendConfig}
+            disabled={!oauthConfigured}
+            prerequisiteErrorMessage={
+              oauthConfigured
+                ? undefined
+                : "Save your Google OAuth client ID and secret in Google OAuth configuration first."
+            }
           />
         </section>
+
+        {oauthConfigured ? null : (
+          <p className="-mt-3 text-sm leading-6 text-muted-foreground">
+            Connecting requires shared Google OAuth credentials. Save your client
+            ID and secret in{" "}
+            <a
+              href="/connectors/cinatra-ai/google-oauth-connector/setup"
+              className="underline underline-offset-4 hover:text-foreground"
+            >
+              Google OAuth configuration
+            </a>{" "}
+            first — create them in the{" "}
+            <a
+              href="https://console.cloud.google.com/apis/credentials"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline underline-offset-4 hover:text-foreground"
+            >
+              Google Cloud Console
+            </a>
+            .
+          </p>
+        )}
 
         <section className="soft-panel rounded-panel p-5 flex flex-col gap-4">
           <div className="flex items-center justify-between gap-4">
