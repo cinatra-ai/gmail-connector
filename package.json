@@ -63,6 +63,7 @@
     "sdkAbiRange": "^2",
     "facadePrimitives": [
       "email_send"
-    ]
+    ],
+    "consumes": []
   }
 }
