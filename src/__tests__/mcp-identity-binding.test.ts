@@ -21,13 +21,18 @@ import {
 import { createGmailPrimitiveHandlers, sendMessageSchema, findReplySchema } from "../mcp/handlers";
 import { registerGmailPrimitives, type ConnectorActorResolver } from "../mcp/registry";
 
-const refreshMock = vi.fn(async () => ({ accessToken: "t", accountEmail: "me@example.com" }));
-const apiFetchMock = vi.fn(async (input: { url: string }) => {
+const refreshMock = vi.fn(async (_input?: { userId?: string; connectorKey?: string }) => ({
+  accessToken: "t",
+  accountEmail: "me@example.com",
+}));
+const apiFetchMock = vi.fn(async (input: { url: string }, _options?: { userId?: string }) => {
   if (input.url.includes("/messages/send")) return { id: "msg-1", threadId: "th-1" };
   // metadata reads (getMessageInternetId / getMessageMetadata)
   return { payload: { headers: [{ name: "Message-ID", value: "<abc@mail>" }] } };
 });
-const searchFetchMock = vi.fn(async () => ({ messages: [] }));
+const searchFetchMock = vi.fn(async (_input?: { url: string }, _options?: { userId?: string }) => ({
+  messages: [],
+}));
 
 function stubDeps(fetchImpl = apiFetchMock): GmailConnectorDeps {
   return {
