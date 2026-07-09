@@ -6,13 +6,16 @@ import { Main, PageHeader, PageContent } from "@cinatra-ai/sdk-ui/marketplace";
 import { NangoUserConnectButton } from "@cinatra-ai/sdk-ui/marketplace";
 // Shared design-system Tabs primitive (cinatra-ai/cinatra#1103) — own subpath
 // only, deliberately NOT re-exported from `/marketplace` (route-graph ratchet).
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@cinatra-ai/sdk-ui/tabs";
+// `TabsListRow` (cinatra-ai/cinatra#1242) is the under-header row that pairs
+// the tablist with the etched section rule to the right of the last tab —
+// the shared primitive now owns that composition, so this extension vendors
+// no local Separator (see the tablist-conformance contract on #42).
+import { Tabs, TabsListRow, TabsTrigger, TabsContent } from "@cinatra-ai/sdk-ui/tabs";
 import { getStoredGmailSendAsAddresses } from "@cinatra-ai/gmail-connector";
 import { refreshGmailSendAsAddressesAction } from "./actions";
 import { getGmailDeps } from "./deps";
 import { Alert, AlertDescription } from "./components/ui/alert";
 import { Button } from "./components/ui/button";
-import { Separator } from "./components/ui/separator";
 
 // Nango data (frontend config + the user's primary saved connection) is read
 // from the injected host port `ctx.nango.*` (host-port inversion) — the impl
@@ -110,24 +113,21 @@ export async function GmailConnectorPageImpl(props: GmailConnectorPageImplProps)
         ) : null}
 
         <Tabs value={activeTab} className="gap-6">
-          {/* The etched paired-line rule stretches from the last tab to the
-              page edge (design-system Tabs; PageHeader's own divider is off
-              above so the two rules never stack). */}
-          <div className="grid grid-cols-[auto_1fr] items-end gap-7">
-            <TabsList className="border-b-0">
-              <TabsTrigger value="setup" asChild>
-                <Link href={`${SETUP_PATH}?tab=setup`}>Setup</Link>
-              </TabsTrigger>
-              <TabsTrigger value="sender-addresses" asChild>
-                <Link href={`${SETUP_PATH}?tab=sender-addresses`}>Sender addresses</Link>
-              </TabsTrigger>
-              {/* Help is the reserved tab — always last (app-connectors §II). */}
-              <TabsTrigger value="help" asChild>
-                <Link href={`${SETUP_PATH}?tab=help`}>Help</Link>
-              </TabsTrigger>
-            </TabsList>
-            <Separator major decorative className="mb-[11px] self-end" />
-          </div>
+          {/* TabsListRow pairs the tablist with the etched section rule to the
+              right of the last tab (design-system Tabs §Dividers; PageHeader's
+              own divider is off above so the two rules never stack). */}
+          <TabsListRow>
+            <TabsTrigger value="setup" asChild>
+              <Link href={`${SETUP_PATH}?tab=setup`}>Setup</Link>
+            </TabsTrigger>
+            <TabsTrigger value="sender-addresses" asChild>
+              <Link href={`${SETUP_PATH}?tab=sender-addresses`}>Sender addresses</Link>
+            </TabsTrigger>
+            {/* Help is the reserved tab — always last (app-connectors §II). */}
+            <TabsTrigger value="help" asChild>
+              <Link href={`${SETUP_PATH}?tab=help`}>Help</Link>
+            </TabsTrigger>
+          </TabsListRow>
 
           <TabsContent value="setup" className="mt-6">
             <section className="soft-panel rounded-panel p-5 flex items-center justify-between gap-4">
