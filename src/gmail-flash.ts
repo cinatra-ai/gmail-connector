@@ -18,11 +18,13 @@ import type { SearchParamToastConfig } from "@cinatra-ai/sdk-ui/search-param-toa
 
 export const GMAIL_NOTICE_MESSAGES = {
   "sender-addresses-refreshed": "Sender email addresses refreshed.",
+  "disconnected": "Gmail account disconnected.",
 } as const;
 
 export const GMAIL_ERROR_MESSAGES = {
   "reauth-required": "Gmail authorization expired. Please reconnect your Gmail account.",
   "refresh-failed": "Unable to load Gmail send addresses.",
+  "disconnect-failed": "Unable to disconnect the Gmail account. Please try again.",
 } as const;
 
 export type GmailNoticeCode = keyof typeof GMAIL_NOTICE_MESSAGES;

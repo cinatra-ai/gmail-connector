@@ -68,3 +68,46 @@ export async function refreshGmailSendAsAddressesAction() {
 
   redirect(gmailSetupRedirect({ notice: "sender-addresses-refreshed", tab: "sender-addresses" }));
 }
+
+// Disconnect the user's Gmail account (the Setup-tab destructive action,
+// app-connectors.html §II items 15–16 — confirmed by the setup page's
+// AlertDialog before this runs). Read-gated + self-scoped exactly like the
+// refresh action: a workspace member disconnects only their OWN mailbox
+// connection, so `"read"` (not `"manage"`) is correct — this is the per-user
+// twin of github-connector's admin-managed, instance-global disconnect.
+//
+// It drops the cinatra-side saved connection record for `gmail` so the page
+// returns to "Not connected" — the same record-clear the stale-token path
+// already performs. The shared workspace Google OAuth client (the
+// `googleOAuth` record, admin-configured in the google-oauth connector) is
+// deliberately KEPT: disconnecting one member's mailbox must never revoke the
+// workspace credential every other member connects through. Idempotent — a
+// no-op record-clear when there is no saved connection.
+export async function disconnectGmailConnectionAction() {
+  await requireExtensionAction(GMAIL_PACKAGE_ID, "read");
+  const { requireSessionUserId, nango } = getGmailDeps();
+  const userId = await requireSessionUserId();
+
+  let ok = true;
+  try {
+    await nango.clearConnectionRecords("gmail", { scope: "user", userId });
+  } catch {
+    ok = false;
+  }
+  // redirect() throws NEXT_REDIRECT — it MUST live outside the try above.
+  redirect(gmailSetupRedirect(ok ? { notice: "disconnected" } : { error: "disconnect-failed" }));
+}
+
+// Re-probe the live connection status for the Connection status card's Check
+// action (app-connectors.html §II items 13–14). Returns the badge-shaped status
+// ("connected" | "disconnected") and NEVER redirects, so the client island can
+// swap its transient "Checking…" badge for the resolved state in place. Read
+// the same cinatra-side saved-connection pointer the setup page renders from,
+// so Check and the initial render can never disagree.
+export async function checkGmailStatusAction(): Promise<"connected" | "disconnected"> {
+  await requireExtensionAction(GMAIL_PACKAGE_ID, "read");
+  const { requireSessionUserId, nango } = getGmailDeps();
+  const userId = await requireSessionUserId();
+  const connection = nango.getPrimarySavedConnection("gmail", { scope: "user", userId });
+  return connection ? "connected" : "disconnected";
+}
