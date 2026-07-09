@@ -29,9 +29,17 @@ function isStaleNangoTokenError(error: unknown): boolean {
   );
 }
 
-function gmailSetupRedirect(params: { error?: string; sendAsRefreshed?: boolean }): string {
+function gmailSetupRedirect(params: {
+  error?: string;
+  sendAsRefreshed?: boolean;
+  // Which setup-page tab the redirect should land on (the setup page's own
+  // tablist — see ./gmail-setup-impl.tsx). Omitted for the stale-token-reauth
+  // redirect so it falls back to the "setup" tab, where Reconnect lives.
+  tab?: "sender-addresses";
+}): string {
   const base = "/connectors/cinatra-ai/gmail-connector/setup";
   const sp = new URLSearchParams();
+  if (params.tab) sp.set("tab", params.tab);
   if (params.sendAsRefreshed) sp.set("sendAsRefreshed", "1");
   if (params.error) sp.set("error", params.error);
   const qs = sp.toString();
@@ -58,8 +66,8 @@ export async function refreshGmailSendAsAddressesAction() {
       );
     }
     const message = error instanceof Error ? error.message : "Unable to load Gmail send addresses.";
-    redirect(gmailSetupRedirect({ error: message }));
+    redirect(gmailSetupRedirect({ error: message, tab: "sender-addresses" }));
   }
 
-  redirect(gmailSetupRedirect({ sendAsRefreshed: true }));
+  redirect(gmailSetupRedirect({ sendAsRefreshed: true, tab: "sender-addresses" }));
 }
