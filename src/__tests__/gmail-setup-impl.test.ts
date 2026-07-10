@@ -19,6 +19,15 @@ const SOURCE = readFileSync(
   "utf-8",
 );
 
+// The Connect / Disconnect / status affordances live in the client island so
+// their lucide glyphs bundle on the client (never cross the RSC boundary as a
+// bare component). Owner-review point 1 (the indigo-plug Connect icon) and the
+// Connect label are asserted against this module.
+const SETUP_CLIENT = readFileSync(
+  path.join(__dirname, "..", "setup-client.tsx"),
+  "utf-8",
+);
+
 describe("GmailConnectorPageImpl toast-island composition", () => {
   it("imports the sdk-ui SearchParamToast island and the connector's static flash map", () => {
     expect(SOURCE).toMatch(
@@ -46,8 +55,26 @@ describe("GmailConnectorPageImpl toast-island composition", () => {
 
   // ── Owner review (gmail-connector#46, CHANGES_REQUESTED) ──────────────
   it("labels the Connect button 'Connect' per the setup-page spec — never 'Connect Gmail'", () => {
-    expect(SOURCE).toMatch(/connectLabel="Connect"/);
+    // The Connect control now lives in the setup-client island (so its plug
+    // glyph bundles client-side); its label is fixed there.
+    expect(SETUP_CLIENT).toMatch(/connectLabel="Connect"/);
+    expect(SETUP_CLIENT).not.toMatch(/connectLabel="Connect Gmail"/);
     expect(SOURCE).not.toMatch(/connectLabel="Connect Gmail"/);
+  });
+
+  // Owner-review point 1 (2026-07-10 15:43Z): "Connect button misses the icon
+  // as per spec." app-connectors §II (spec 33fb46d) rules the pair as an
+  // "icon-led Connect (indigo primary, the plug from the Connected badge)" +
+  // "Disconnect (…the unplug from the Disconnected badge)". The Connected badge
+  // renders PlugZap and the Disconnected badge renders Unplug
+  // (sdk-ui connection-status-badge), so the buttons carry the SAME glyphs.
+  it("gives the Connect button the indigo plug glyph from the Connected badge (PlugZap) via NangoUserConnectButton's leadingIcon slot", () => {
+    expect(SETUP_CLIENT).toMatch(/import \{ PlugZap, RefreshCw, Unplug \} from "lucide-react";/);
+    expect(SETUP_CLIENT).toMatch(/leadingIcon=\{<PlugZap aria-hidden="true" \/>\}/);
+  });
+
+  it("keeps the Disconnect button's red unplug glyph (Unplug) — the pair speaks the status-badge language", () => {
+    expect(SETUP_CLIENT).toMatch(/variant="destructive"[\s\S]*?<Unplug aria-hidden="true" \/>/);
   });
 
   it("shows the OAuth-prerequisite card when the shared client is unconfigured, linking 'Google OAuth credentials' to the google-oauth setup page", () => {
@@ -58,6 +85,28 @@ describe("GmailConnectorPageImpl toast-island composition", () => {
     expect(SOURCE).toMatch(
       /href="\/connectors\/cinatra-ai\/google-oauth-connector\/setup"/,
     );
+  });
+
+  // Owner-review point 2 (2026-07-10 15:43Z): "Put the card re Google OAuth
+  // above the buttons." The prerequisite card must precede the action row.
+  it("places the OAuth-prerequisite card ABOVE the Connect/Disconnect action row", () => {
+    const cardIdx = SOURCE.indexOf("Connecting requires shared");
+    const actionsIdx = SOURCE.indexOf("<GmailConnectButton");
+    expect(cardIdx).toBeGreaterThan(-1);
+    expect(actionsIdx).toBeGreaterThan(-1);
+    expect(cardIdx).toBeLessThan(actionsIdx);
+  });
+
+  // Owner-review point 3 (2026-07-10 15:43Z): remove the "Gmail account"
+  // heading (redundant with the page h1) and the "Not connected" text (already
+  // shown by the right-hand Connection status card). The connected mailbox
+  // address stays — it is unique, shown nowhere else.
+  it("removes the redundant 'Gmail account' heading and the 'Not connected' text (render->spec: stale elements are violations)", () => {
+    expect(SOURCE).not.toMatch(/>Gmail account</);
+    expect(SOURCE).not.toMatch(/Not connected/);
+    // The connected-account identity line is retained, gated on `connection`.
+    expect(SOURCE).toMatch(/\{connection \? \(/);
+    expect(SOURCE).toMatch(/Connected\{connection\.email \? ` as \$\{connection\.email\}` : ""\}/);
   });
 
   it("renders the Sender-addresses Refresh button unconditionally — the empty-state copy tells the user to click it, so it must not be gated on `connection`", () => {

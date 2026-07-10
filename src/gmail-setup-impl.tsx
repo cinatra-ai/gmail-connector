@@ -13,7 +13,6 @@ import { ConnectorSetupPage } from "@cinatra-ai/sdk-ui/connector-setup-page";
 // Connection status card — that reflows to one column on a narrow viewport
 // (§II items 5, 32).
 import { ConnectorSetupColumns } from "@cinatra-ai/sdk-ui/connector-setup-columns";
-import { NangoUserConnectButton } from "@cinatra-ai/sdk-ui/marketplace";
 import { SearchParamToast } from "@cinatra-ai/sdk-ui/search-param-toast";
 // Shared design-system Tabs primitive (cinatra-ai/cinatra#1103) — own subpath
 // only, deliberately NOT re-exported from `/marketplace` (route-graph ratchet).
@@ -31,10 +30,11 @@ import {
 import { getGmailDeps } from "./deps";
 import { GMAIL_FLASH_TOASTS } from "./gmail-flash";
 import { Button } from "./components/ui/button";
-// The two interactive client islands — the right-column Connection status card
-// + its Check probe, and the destructive Disconnect button + its confirmation
-// AlertDialog (§II items 10–16). Twins of the github-connector setup islands.
-import { ConnectionStatusPanel, DisconnectAction } from "./setup-client";
+// The interactive client islands — the icon-led indigo Connect button (its
+// PlugZap glyph bundled client-side), the right-column Connection status card +
+// its Check probe, and the destructive Disconnect button + its confirmation
+// AlertDialog (§II items 7–16). Twins of the github-connector setup islands.
+import { ConnectionStatusPanel, DisconnectAction, GmailConnectButton } from "./setup-client";
 
 // Nango data (frontend config + the user's primary saved connection) is read
 // from the injected host port `ctx.nango.*` (host-port inversion) — the impl
@@ -157,46 +157,15 @@ export async function GmailConnectorPageImpl(props: GmailConnectorPageImplProps)
             state="ready"
             fields={
               <div className="flex flex-col gap-6">
-                <div>
-                  <p className="text-sm font-medium text-foreground">Gmail account</p>
-                  <p className="mt-1 text-sm text-muted-foreground">
-                    {connection ? `Connected${connection.email ? ` as ${connection.email}` : ""}` : "Not connected"}
-                  </p>
-                </div>
-
-                {/* Actions — side by side, never stacked (§II item 7):
-                    Connect (indigo primary) + Disconnect (destructive, unplug)
-                    disabled until connected (item 8). Gmail's Connect
-                    additionally requires the shared workspace Google OAuth
-                    client to be configured first — the button carries that
-                    prerequisite guidance inline (merged behavior, #23). */}
-                <div className="flex flex-wrap items-center gap-3">
-                  <NangoUserConnectButton
-                    connectorKey="gmail"
-                    reconnectConnectionId={connection?.connectionId}
-                    connected={connected}
-                    connectLabel="Connect"
-                    reconnectLabel="Reconnect"
-                    nangoFrontendConfig={nangoFrontendConfig}
-                    disabled={!oauthConfigured}
-                    prerequisiteErrorMessage={
-                      oauthConfigured
-                        ? undefined
-                        : "Save your Google OAuth client ID and secret in Google OAuth configuration first."
-                    }
-                  />
-                  <DisconnectAction
-                    connected={connected}
-                    disconnectAction={disconnectGmailConnectionAction}
-                  />
-                </div>
-
-                {/* OAuth-prerequisite card (mirrors the google-calendar setup
-                    page): Connect is greyed only because the shared Google OAuth
-                    client is not configured yet — this card names that reason
-                    inline and links "Google OAuth credentials" straight to the
-                    google-oauth connector's setup page so the muting is never
-                    unexplained. Shown only while the client is unconfigured. */}
+                {/* OAuth-prerequisite card — placed ABOVE the actions (owner
+                    review gmail-connector#46, 2026-07-10): the card that
+                    explains why Connect is muted must sit above the buttons it
+                    refers to, mirroring the google-calendar setup page. Connect
+                    is greyed only because the shared Google OAuth client is not
+                    configured yet — this card names that reason inline and links
+                    "Google OAuth credentials" straight to the google-oauth
+                    connector's setup page so the muting is never unexplained.
+                    Shown only while the client is unconfigured. */}
                 {oauthConfigured ? null : (
                   <div className="rounded-control border border-line bg-surface px-4 py-3">
                     <p className="text-sm leading-6 text-muted-foreground">
@@ -220,6 +189,41 @@ export async function GmailConnectorPageImpl(props: GmailConnectorPageImplProps)
                     </p>
                   </div>
                 )}
+
+                {/* Connected-account identity — only when connected. The
+                    redundant account heading and the not-connected placeholder
+                    line are removed per owner review (gmail-connector#46): the
+                    connector name is already the page h1, and the disconnected
+                    state is already shown by the Connection status card on the
+                    right. The connected mailbox address stays — it is unique,
+                    shown nowhere else. */}
+                {connection ? (
+                  <p className="text-sm text-muted-foreground">
+                    Connected{connection.email ? ` as ${connection.email}` : ""}
+                  </p>
+                ) : null}
+
+                {/* Actions — side by side, never stacked (§II item 7): the
+                    icon-led indigo Connect (the PlugZap glyph from the Connected
+                    badge) beside the destructive Disconnect (unplug), disabled
+                    until connected (item 8). Both live in the setup-client
+                    island so their lucide glyphs bundle on the client. Gmail's
+                    Connect additionally requires the shared workspace Google
+                    OAuth client — when unconfigured the button is muted and the
+                    prerequisite card above names the reason (merged behavior,
+                    #23). */}
+                <div className="flex flex-wrap items-center gap-3">
+                  <GmailConnectButton
+                    connected={connected}
+                    reconnectConnectionId={connection?.connectionId}
+                    nangoFrontendConfig={nangoFrontendConfig}
+                    oauthConfigured={oauthConfigured}
+                  />
+                  <DisconnectAction
+                    connected={connected}
+                    disconnectAction={disconnectGmailConnectionAction}
+                  />
+                </div>
               </div>
             }
             aside={

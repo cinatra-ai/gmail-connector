@@ -22,9 +22,11 @@
 // speak one status + disconnect language.
 
 import * as React from "react";
-import { RefreshCw, Unplug } from "lucide-react";
+import { PlugZap, RefreshCw, Unplug } from "lucide-react";
 import { ConnectionStatusCard } from "@cinatra-ai/sdk-ui/connection-status-card";
 import type { ConnectionStatus } from "@cinatra-ai/sdk-ui/connection-status-badge";
+import { NangoUserConnectButton } from "@cinatra-ai/sdk-ui/marketplace";
+import type { NangoFrontendConfig } from "@cinatra-ai/sdk-ui/marketplace";
 import { Button } from "./components/ui/button";
 import {
   AlertDialog,
@@ -37,6 +39,46 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "./components/ui/dialog";
+
+// The setup page's primary Connect control (app-connectors.html §II · the
+// icon-led indigo "Connect" pair). Rendered in this CLIENT island rather than
+// the server impl so the decorative PlugZap glyph — the SAME plug the Connected
+// status badge shows (sdk-ui connection-status-badge · PlugZap) — is bundled on
+// the client and never crosses the RSC boundary as a bare (non-"use client")
+// component reference. It wraps the shared NangoUserConnectButton WITHOUT
+// re-implementing its Nango connect-session flow: it only fixes gmail's label
+// and the leading glyph, and forwards the shared-Google-OAuth-client
+// prerequisite gate. Its unplug twin is DisconnectAction below.
+export function GmailConnectButton({
+  connected,
+  reconnectConnectionId,
+  nangoFrontendConfig,
+  oauthConfigured,
+}: {
+  connected: boolean;
+  reconnectConnectionId?: string;
+  nangoFrontendConfig: NangoFrontendConfig;
+  /** The shared workspace Google OAuth client is configured — Connect is muted until then. */
+  oauthConfigured: boolean;
+}) {
+  return (
+    <NangoUserConnectButton
+      connectorKey="gmail"
+      reconnectConnectionId={reconnectConnectionId}
+      connected={connected}
+      connectLabel="Connect"
+      reconnectLabel="Reconnect"
+      leadingIcon={<PlugZap aria-hidden="true" />}
+      nangoFrontendConfig={nangoFrontendConfig}
+      disabled={!oauthConfigured}
+      prerequisiteErrorMessage={
+        oauthConfigured
+          ? undefined
+          : "Save your Google OAuth client ID and secret in Google OAuth configuration first."
+      }
+    />
+  );
+}
 
 export function ConnectionStatusPanel({
   initialConnected,
