@@ -43,4 +43,29 @@ describe("GmailConnectorPageImpl toast-island composition", () => {
     expect(SOURCE).not.toMatch(/sendAsRefreshed/);
     expect(SOURCE).not.toMatch(/authorization expired/);
   });
+
+  // ── Owner review (gmail-connector#46, CHANGES_REQUESTED) ──────────────
+  it("labels the Connect button 'Connect' per the setup-page spec — never 'Connect Gmail'", () => {
+    expect(SOURCE).toMatch(/connectLabel="Connect"/);
+    expect(SOURCE).not.toMatch(/connectLabel="Connect Gmail"/);
+  });
+
+  it("shows the OAuth-prerequisite card when the shared client is unconfigured, linking 'Google OAuth credentials' to the google-oauth setup page", () => {
+    // The reason the Connect button is greyed must be named inline (not silent).
+    expect(SOURCE).toMatch(/oauthConfigured \? null : \(/);
+    expect(SOURCE).toMatch(/Connecting requires shared/);
+    expect(SOURCE).toMatch(/Google OAuth credentials/);
+    expect(SOURCE).toMatch(
+      /href="\/connectors\/cinatra-ai\/google-oauth-connector\/setup"/,
+    );
+  });
+
+  it("renders the Sender-addresses Refresh button unconditionally — the empty-state copy tells the user to click it, so it must not be gated on `connection`", () => {
+    // The refresh <form> is present and NOT wrapped in a `{connection ? … : null}`
+    // guard (which previously hid the very control the copy names).
+    expect(SOURCE).toMatch(/action=\{refreshGmailSendAsAddressesAction\}/);
+    expect(SOURCE).not.toMatch(
+      /\{connection \? \(\s*<form action=\{refreshGmailSendAsAddressesAction\}>/,
+    );
+  });
 });

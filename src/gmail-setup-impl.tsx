@@ -175,7 +175,7 @@ export async function GmailConnectorPageImpl(props: GmailConnectorPageImplProps)
                     connectorKey="gmail"
                     reconnectConnectionId={connection?.connectionId}
                     connected={connected}
-                    connectLabel="Connect Gmail"
+                    connectLabel="Connect"
                     reconnectLabel="Reconnect"
                     nangoFrontendConfig={nangoFrontendConfig}
                     disabled={!oauthConfigured}
@@ -190,6 +190,36 @@ export async function GmailConnectorPageImpl(props: GmailConnectorPageImplProps)
                     disconnectAction={disconnectGmailConnectionAction}
                   />
                 </div>
+
+                {/* OAuth-prerequisite card (mirrors the google-calendar setup
+                    page): Connect is greyed only because the shared Google OAuth
+                    client is not configured yet — this card names that reason
+                    inline and links "Google OAuth credentials" straight to the
+                    google-oauth connector's setup page so the muting is never
+                    unexplained. Shown only while the client is unconfigured. */}
+                {oauthConfigured ? null : (
+                  <div className="rounded-control border border-line bg-surface px-4 py-3">
+                    <p className="text-sm leading-6 text-muted-foreground">
+                      Connecting requires shared{" "}
+                      <Link
+                        href="/connectors/cinatra-ai/google-oauth-connector/setup"
+                        className="underline underline-offset-4 hover:text-foreground"
+                      >
+                        Google OAuth credentials
+                      </Link>
+                      . Save your client ID and secret there first — create them in the{" "}
+                      <Link
+                        href="https://console.cloud.google.com/apis/credentials"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="underline underline-offset-4 hover:text-foreground"
+                      >
+                        Google Cloud Console
+                      </Link>
+                      .
+                    </p>
+                  </div>
+                )}
               </div>
             }
             aside={
@@ -203,13 +233,17 @@ export async function GmailConnectorPageImpl(props: GmailConnectorPageImplProps)
         </TabsContent>
 
         <TabsContent value="sender-addresses" className="mt-6 max-w-xl flex flex-col gap-4">
+          {/* Refresh is ALWAYS present (never gated on `connection`): the
+              empty-state copy below tells the user to click Refresh to query
+              Gmail, so the control it names must exist even before a mailbox is
+              connected. Wired to the real refresh server action — when there is
+              no live connection the action redirects back with a reconnect flash
+              rather than silently doing nothing. */}
           <div className="flex items-center justify-between gap-4">
             <p className="text-sm text-muted-foreground">Verified send-as addresses for the connected account.</p>
-            {connection ? (
-              <form action={refreshGmailSendAsAddressesAction}>
-                <Button type="submit" variant="outline" size="sm">Refresh</Button>
-              </form>
-            ) : null}
+            <form action={refreshGmailSendAsAddressesAction}>
+              <Button type="submit" variant="outline" size="sm">Refresh</Button>
+            </form>
           </div>
           {gmailSettings.aliases.length > 0 ? (
             <div className="grid gap-3">
