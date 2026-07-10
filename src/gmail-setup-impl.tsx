@@ -233,18 +233,7 @@ export async function GmailConnectorPageImpl(props: GmailConnectorPageImplProps)
         </TabsContent>
 
         <TabsContent value="sender-addresses" className="mt-6 max-w-xl flex flex-col gap-4">
-          {/* Refresh is ALWAYS present (never gated on `connection`): the
-              empty-state copy below tells the user to click Refresh to query
-              Gmail, so the control it names must exist even before a mailbox is
-              connected. Wired to the real refresh server action — when there is
-              no live connection the action redirects back with a reconnect flash
-              rather than silently doing nothing. */}
-          <div className="flex items-center justify-between gap-4">
-            <p className="text-sm text-muted-foreground">Verified send-as addresses for the connected account.</p>
-            <form action={refreshGmailSendAsAddressesAction}>
-              <Button type="submit" variant="outline" size="sm">Refresh</Button>
-            </form>
-          </div>
+          <p className="text-sm text-muted-foreground">Verified send-as addresses for the connected account.</p>
           {gmailSettings.aliases.length > 0 ? (
             <div className="grid gap-3">
               {gmailSettings.aliases.map((alias) => (
@@ -262,6 +251,18 @@ export async function GmailConnectorPageImpl(props: GmailConnectorPageImplProps)
               Last refreshed {formatTimestamp(gmailSettings.syncedAt)}
             </p>
           ) : null}
+          {/* Refresh is ALWAYS present (never gated on `connection`): the
+              empty-state copy above tells the user to click Refresh to query
+              Gmail, so the control it names must exist even before a mailbox is
+              connected. It sits at the END of the tab content per the owner
+              contract addition (cinatra-ai/cinatra#1101, 2026-07-10): action
+              buttons inside tab content are always placed at the end. Wired to
+              the real refresh server action — when there is no live connection
+              the action redirects back with a reconnect flash rather than
+              silently doing nothing. */}
+          <form action={refreshGmailSendAsAddressesAction}>
+            <Button type="submit" variant="outline" size="sm">Refresh</Button>
+          </form>
         </TabsContent>
 
         <TabsContent value="help" className="mt-6 max-w-xl flex flex-col gap-4">

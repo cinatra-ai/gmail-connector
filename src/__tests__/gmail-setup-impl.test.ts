@@ -68,4 +68,24 @@ describe("GmailConnectorPageImpl toast-island composition", () => {
       /\{connection \? \(\s*<form action=\{refreshGmailSendAsAddressesAction\}>/,
     );
   });
+
+  it("places the Sender-addresses Refresh action at the END of the tab content (owner contract cinatra-ai/cinatra#1101, 2026-07-10) — after the list/empty-state and the last-refreshed line, never in a top header row", () => {
+    // Placement contract: an action button inside tab content sits at the end.
+    const emptyStateIdx = SOURCE.indexOf("No sender addresses loaded yet");
+    const lastRefreshedIdx = SOURCE.indexOf("Last refreshed {formatTimestamp");
+    const refreshFormIdx = SOURCE.indexOf(
+      "<form action={refreshGmailSendAsAddressesAction}>",
+    );
+    expect(emptyStateIdx).toBeGreaterThan(-1);
+    expect(lastRefreshedIdx).toBeGreaterThan(-1);
+    expect(refreshFormIdx).toBeGreaterThan(-1);
+    // The action form must come AFTER both the content list/empty-state and the
+    // last-refreshed line — i.e. it is the last thing in the tab.
+    expect(refreshFormIdx).toBeGreaterThan(emptyStateIdx);
+    expect(refreshFormIdx).toBeGreaterThan(lastRefreshedIdx);
+    // The old top-of-tab header row that paired the copy with Refresh is gone.
+    expect(SOURCE).not.toMatch(
+      /<div className="flex items-center justify-between gap-4">\s*<p[^>]*>Verified send-as addresses/,
+    );
+  });
 });
