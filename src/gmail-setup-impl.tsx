@@ -1,9 +1,11 @@
 import "server-only";
+import { Suspense } from "react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import type { ExtensionHostContext } from "@cinatra-ai/sdk-extensions";
 import { Main, PageHeader, PageContent } from "@cinatra-ai/sdk-ui/marketplace";
 import { NangoUserConnectButton } from "@cinatra-ai/sdk-ui/marketplace";
+import { SearchParamToast } from "@cinatra-ai/sdk-ui/search-param-toast";
 // Shared design-system Tabs primitive (cinatra-ai/cinatra#1103) — own subpath
 // only, deliberately NOT re-exported from `/marketplace` (route-graph ratchet).
 // `TabsListRow` (cinatra-ai/cinatra#1242) is the under-header row that pairs
@@ -14,7 +16,7 @@ import { Tabs, TabsListRow, TabsTrigger, TabsContent } from "@cinatra-ai/sdk-ui/
 import { getStoredGmailSendAsAddresses } from "@cinatra-ai/gmail-connector";
 import { refreshGmailSendAsAddressesAction } from "./actions";
 import { getGmailDeps } from "./deps";
-import { Alert, AlertDescription } from "./components/ui/alert";
+import { GMAIL_FLASH_TOASTS } from "./gmail-flash";
 import { Button } from "./components/ui/button";
 
 // Nango data (frontend config + the user's primary saved connection) is read
@@ -65,8 +67,6 @@ export async function GmailConnectorPageImpl(props: GmailConnectorPageImplProps)
     throw new Error("[gmail-connector] no userId on actor");
   }
   const sp = await (props.searchParams ?? Promise.resolve({})) as SearchParams;
-  const sendAsRefreshed = pick(sp.sendAsRefreshed) === "1";
-  const error = pick(sp.error);
   // Which tab a redirect back to this page should land on — ./actions.ts sets
   // `tab=sender-addresses` on the Refresh flow's redirects so the user lands
   // back where they clicked Refresh; defaults to Setup otherwise.
@@ -88,12 +88,17 @@ export async function GmailConnectorPageImpl(props: GmailConnectorPageImplProps)
   } catch {
     oauthConfigured = true;
   }
-  // Suppress the "authorization expired" error once the user has successfully reconnected,
-  // since router.refresh() re-renders with the same ?error= URL param still present.
-  const visibleError = connection && error?.includes("authorization expired") ? undefined : error;
 
   return (
     <Main className="min-h-screen">
+      {/* Codes-only flash island (cinatra-ai/cinatra#1108): ./actions.ts
+          redirects here with a stable ?notice=<code> / ?error=<code>; this
+          reads it once, toasts the STATIC mapped message from ./gmail-flash,
+          then strips the consumed param — so a refresh/reconnect never
+          replays a stale error toast (supersedes the old suppression hack). */}
+      <Suspense fallback={null}>
+        <SearchParamToast toasts={GMAIL_FLASH_TOASTS} />
+      </Suspense>
       <PageHeader
         title="Gmail"
         description="Connect your Gmail account and manage the verified send-as addresses available for outreach."
@@ -101,17 +106,6 @@ export async function GmailConnectorPageImpl(props: GmailConnectorPageImplProps)
         divider={false}
       />
       <PageContent className="max-w-3xl flex flex-col gap-6 pb-8">
-        {sendAsRefreshed ? (
-          <Alert variant="success" className="rounded-control">
-            <AlertDescription>Sender email addresses refreshed.</AlertDescription>
-          </Alert>
-        ) : null}
-        {visibleError ? (
-          <Alert variant="destructive" className="rounded-control">
-            <AlertDescription>{visibleError}</AlertDescription>
-          </Alert>
-        ) : null}
-
         <Tabs value={activeTab} className="gap-6">
           {/* TabsListRow pairs the tablist with the etched section rule to the
               right of the last tab (design-system Tabs §Dividers; PageHeader's

@@ -15,10 +15,13 @@
 
 import { redirect } from "next/navigation";
 import { requireExtensionAction } from "@cinatra-ai/sdk-extensions";
+import { flashHref } from "@cinatra-ai/sdk-extensions/flash-href";
 import { refreshUserGmailSendAsAddresses } from "./index";
 import { getGmailDeps } from "./deps";
+import type { GmailErrorCode, GmailNoticeCode } from "./gmail-flash";
 
 const GMAIL_PACKAGE_ID = "@cinatra-ai/gmail-connector";
+const SETUP_PATH = "/connectors/cinatra-ai/gmail-connector/setup";
 
 function isStaleNangoTokenError(error: unknown): boolean {
   const msg = error instanceof Error ? error.message : "";
@@ -29,21 +32,20 @@ function isStaleNangoTokenError(error: unknown): boolean {
   );
 }
 
+// Codes-only flash protocol (cinatra-ai/cinatra#1108): the redirect target
+// carries a stable CODE, never dynamic error text — the <SearchParamToast>
+// island mounted in ./gmail-setup-impl.tsx maps each code to a STATIC message
+// (see ./gmail-flash.ts). `tab` is a plain (non-flash) param preserved
+// alongside the flash code so the redirect still lands on the tab the user
+// refreshed from; it is OMITTED for the stale-token-reauth redirect so it
+// falls back to the "setup" tab, where Reconnect lives.
 function gmailSetupRedirect(params: {
-  error?: string;
-  sendAsRefreshed?: boolean;
-  // Which setup-page tab the redirect should land on (the setup page's own
-  // tablist — see ./gmail-setup-impl.tsx). Omitted for the stale-token-reauth
-  // redirect so it falls back to the "setup" tab, where Reconnect lives.
+  error?: GmailErrorCode;
+  notice?: GmailNoticeCode;
   tab?: "sender-addresses";
 }): string {
-  const base = "/connectors/cinatra-ai/gmail-connector/setup";
-  const sp = new URLSearchParams();
-  if (params.tab) sp.set("tab", params.tab);
-  if (params.sendAsRefreshed) sp.set("sendAsRefreshed", "1");
-  if (params.error) sp.set("error", params.error);
-  const qs = sp.toString();
-  return qs ? `${base}?${qs}` : base;
+  const base = params.tab ? `${SETUP_PATH}?tab=${params.tab}` : SETUP_PATH;
+  return flashHref(base, { error: params.error, notice: params.notice });
 }
 
 export async function refreshGmailSendAsAddressesAction() {
@@ -59,15 +61,10 @@ export async function refreshGmailSendAsAddressesAction() {
       // token. Clear the local record so the page shows "Not connected".
       await nango.clearConnectionRecords("gmail", { scope: "user", userId });
       await nango.clearConnectionRecords("googleOAuth", { scope: "user", userId });
-      redirect(
-        gmailSetupRedirect({
-          error: "Gmail authorization expired. Please reconnect your Gmail account.",
-        }),
-      );
+      redirect(gmailSetupRedirect({ error: "reauth-required" }));
     }
-    const message = error instanceof Error ? error.message : "Unable to load Gmail send addresses.";
-    redirect(gmailSetupRedirect({ error: message, tab: "sender-addresses" }));
+    redirect(gmailSetupRedirect({ error: "refresh-failed", tab: "sender-addresses" }));
   }
 
-  redirect(gmailSetupRedirect({ sendAsRefreshed: true, tab: "sender-addresses" }));
+  redirect(gmailSetupRedirect({ notice: "sender-addresses-refreshed", tab: "sender-addresses" }));
 }
