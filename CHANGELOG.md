@@ -13,7 +13,7 @@ project's merged pull request and release-tag history.
 
 ## v0.1.1 — 2026-06-13
 
-- test: re-ground dev-recipient-override onto the deps slot (cinatra#172 Stage H1) (#15)
+- test: re-ground dev-recipient-override onto the deps slot (#15)
 - ci(release): grant contents: write + pin reusable workflow to .github HEAD (#16)
 - ci: repin reusable release workflow (immutable-safe decoration + corrected build-input provisioning) (#17)
 - release: gmail-connector v0.1.1 (republish on corrected serverEntry build pipeline) (#18)
@@ -35,8 +35,8 @@ project's merged pull request and release-tag history.
 - chore: drop the empty src/__tests__/ dir entry from source archives (#9)
 - ci: adopt the org ui-design-system gate (#10)
 - chore: Configure Renovate (#11)
-- Resolve the nango-system surface directly (cinatra#151 Stage 3) (#13)
-- feat: register email-sender-identities + declare the email_send facade primitive (cinatra#151 Stage 4) (#14)
+- Resolve the nango-system surface directly (#13)
+- feat: register email-sender-identities + declare the email_send facade primitive (#14)
 - docs(readme): expand README to the org standard (#24) (#25)
 - ci(ui-gate): ramp raw-JSX block to error (#26)
 - ci: adopt source-leak-gate (#27)
