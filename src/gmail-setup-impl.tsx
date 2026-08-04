@@ -31,9 +31,10 @@ import { getGmailDeps } from "./deps";
 import { GMAIL_FLASH_TOASTS } from "./gmail-flash";
 import { Button } from "./components/ui/button";
 // The interactive client islands — the icon-led indigo Connect button (its
-// PlugZap glyph bundled client-side), the right-column Connection status card +
-// its Check probe, and the destructive Disconnect button + its confirmation
-// AlertDialog (§II items 7–16). Twins of the github-connector setup islands.
+// shared PlugConnected glyph bundled client-side), the right-column Connection
+// status card + its Check probe, and the destructive Disconnect button + its
+// confirmation AlertDialog (§II items 7–16). Twins of the github-connector
+// setup islands.
 import { ConnectionStatusPanel, DisconnectAction, GmailConnectButton } from "./setup-client";
 
 // Nango data (frontend config + the user's primary saved connection) is read
@@ -204,10 +205,12 @@ export async function GmailConnectorPageImpl(props: GmailConnectorPageImplProps)
                 ) : null}
 
                 {/* Actions — side by side, never stacked (§II item 7): the
-                    icon-led indigo Connect (the PlugZap glyph from the Connected
-                    badge) beside the destructive Disconnect (unplug), disabled
-                    until connected (item 8). Both live in the setup-client
-                    island so their lucide glyphs bundle on the client. Gmail's
+                    icon-led indigo Connect (the shared PlugConnected joined-plug
+                    glyph from the Connected badge — one definition in
+                    `@cinatra-ai/sdk-ui/icons`, never a local re-draw) beside the
+                    destructive Disconnect (unplug), disabled until connected
+                    (item 8). Both live in the setup-client island so their
+                    glyphs bundle on the client. Gmail's
                     Connect additionally requires the shared workspace Google
                     OAuth client — when unconfigured the button is muted and the
                     prerequisite card above names the reason (merged behavior,

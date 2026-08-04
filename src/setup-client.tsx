@@ -22,7 +22,15 @@
 // speak one status + disconnect language.
 
 import * as React from "react";
-import { PlugZap, RefreshCw, Unplug } from "lucide-react";
+import { RefreshCw, Unplug } from "lucide-react";
+// The joined plug is a FIRST-PARTY design-system mark, not a lucide one
+// (cinatra#2356): it ships from its own `@cinatra-ai/sdk-ui/icons` subpath and
+// is deliberately absent from the sdk-ui root and `/marketplace` barrels, so it
+// is imported from that subpath rather than pulled through a barrel. Built with
+// lucide's own `createLucideIcon` factory, so it is a drop-in for a lucide icon
+// at this call site (same `LucideProps`, same 24x24 `stroke="currentColor"`
+// chrome, same automatic `aria-hidden` handling).
+import { PlugConnected } from "@cinatra-ai/sdk-ui/icons";
 import { ConnectionStatusCard } from "@cinatra-ai/sdk-ui/connection-status-card";
 import type { ConnectionStatus } from "@cinatra-ai/sdk-ui/connection-status-badge";
 import { NangoUserConnectButton } from "@cinatra-ai/sdk-ui/marketplace";
@@ -42,11 +50,13 @@ import {
 
 // The setup page's primary Connect control (app-connectors.html §II · the
 // icon-led indigo "Connect" pair). Rendered in this CLIENT island rather than
-// the server impl so the decorative PlugZap glyph — the SAME plug the Connected
-// status badge shows (sdk-ui connection-status-badge · PlugZap) — is bundled on
-// the client and never crosses the RSC boundary as a bare (non-"use client")
-// component reference. It wraps the shared NangoUserConnectButton WITHOUT
-// re-implementing its Nango connect-session flow: it only fixes gmail's label
+// the server impl so the decorative PlugConnected glyph — the SAME joined plug
+// the Connected status badge shows (sdk-ui connection-status-badge · the
+// `PlugConnected` from `@cinatra-ai/sdk-ui/icons`, ONE shared definition rather
+// than a per-extension twin) — is bundled on the client and never crosses the
+// RSC boundary as a bare (non-"use client") component reference. It wraps the
+// shared NangoUserConnectButton WITHOUT re-implementing its Nango
+// connect-session flow: it only fixes gmail's label
 // and the leading glyph, and forwards the shared-Google-OAuth-client
 // prerequisite gate. Its unplug twin is DisconnectAction below.
 export function GmailConnectButton({
@@ -68,7 +78,7 @@ export function GmailConnectButton({
       connected={connected}
       connectLabel="Connect"
       reconnectLabel="Reconnect"
-      leadingIcon={<PlugZap aria-hidden="true" />}
+      leadingIcon={<PlugConnected aria-hidden="true" />}
       nangoFrontendConfig={nangoFrontendConfig}
       disabled={!oauthConfigured}
       prerequisiteErrorMessage={

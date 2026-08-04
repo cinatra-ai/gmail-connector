@@ -10,7 +10,7 @@
  * the stale-`?error` suppression hack they required are gone outright
  * (render->spec: stale elements are violations).
  */
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import * as path from "node:path";
 import { describe, it, expect } from "vitest";
 
@@ -20,13 +20,31 @@ const SOURCE = readFileSync(
 );
 
 // The Connect / Disconnect / status affordances live in the client island so
-// their lucide glyphs bundle on the client (never cross the RSC boundary as a
-// bare component). Owner-review point 1 (the indigo-plug Connect icon) and the
+// their glyphs bundle on the client (never cross the RSC boundary as a bare
+// component). Owner-review point 1 (the indigo-plug Connect icon) and the
 // Connect label are asserted against this module.
 const SETUP_CLIENT = readFileSync(
   path.join(__dirname, "..", "setup-client.tsx"),
   "utf-8",
 );
+
+// Every file this package SHIPS — package.json `files` is
+// `["src", "!src/__tests__", "cinatra"]`, so the whole src tree except this
+// directory. Read as a set rather than by name so a glyph regression in a file
+// that does not exist yet is still caught; a two-file scan would go blind the
+// moment the Connect action is copied into a new island.
+type ShippedSource = { rel: string; text: string };
+const SHIPPED_SOURCES = (function collect(dir: string, rel = "src"): ShippedSource[] {
+  const out: ShippedSource[] = [];
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    if (entry.name === "__tests__" || entry.name === "node_modules") continue;
+    const abs = path.join(dir, entry.name);
+    const here = `${rel}/${entry.name}`;
+    if (entry.isDirectory()) out.push(...collect(abs, here));
+    else if (/\.(ts|tsx)$/.test(entry.name)) out.push({ rel: here, text: readFileSync(abs, "utf-8") });
+  }
+  return out;
+})(path.join(__dirname, ".."));
 
 describe("GmailConnectorPageImpl toast-island composition", () => {
   it("imports the sdk-ui SearchParamToast island and the connector's static flash map", () => {
@@ -66,11 +84,41 @@ describe("GmailConnectorPageImpl toast-island composition", () => {
   // as per spec." app-connectors §II (spec 33fb46d) rules the pair as an
   // "icon-led Connect (indigo primary, the plug from the Connected badge)" +
   // "Disconnect (…the unplug from the Disconnected badge)". The Connected badge
-  // renders PlugZap and the Disconnected badge renders Unplug
+  // renders the joined plug and the Disconnected badge renders Unplug
   // (sdk-ui connection-status-badge), so the buttons carry the SAME glyphs.
-  it("gives the Connect button the indigo plug glyph from the Connected badge (PlugZap) via NangoUserConnectButton's leadingIcon slot", () => {
-    expect(SETUP_CLIENT).toMatch(/import \{ PlugZap, RefreshCw, Unplug \} from "lucide-react";/);
-    expect(SETUP_CLIENT).toMatch(/leadingIcon=\{<PlugZap aria-hidden="true" \/>\}/);
+  //
+  // Re-pinned for cinatra#2356 (epic #2353, merged as cinatra#2405,
+  // gmail-connector#61): app-connectors.html 0.7.0 re-specifies the CONNECTED
+  // mark as `PlugConnected` — the two halves of `Unplug` with the gap closed,
+  // which lucide does not draw (`PlugZap` is a half plug plus a lightning bolt
+  // that never paired with the unplug). It is defined ONCE, in
+  // `@cinatra-ai/sdk-ui/icons`, and this connector consumes THAT definition
+  // rather than hand-rolling a second one — which is the whole point of the
+  // swap, so the import SOURCE is pinned here alongside the render site. The
+  // negative below is the one that actually catches the drift this issue
+  // documents: a re-introduced local `PlugZap` would silently un-pair the
+  // Connect button from the badge again on the next dependency bump.
+  it("gives the Connect button the indigo joined-plug glyph from the Connected badge (PlugConnected) via NangoUserConnectButton's leadingIcon slot", () => {
+    expect(SETUP_CLIENT).toMatch(
+      /import \{ PlugConnected \} from "@cinatra-ai\/sdk-ui\/icons";/,
+    );
+    expect(SETUP_CLIENT).toMatch(/leadingIcon=\{<PlugConnected aria-hidden="true" \/>\}/);
+    // The remaining lucide import keeps ONLY the glyphs lucide still owns here.
+    expect(SETUP_CLIENT).toMatch(/import \{ RefreshCw, Unplug \} from "lucide-react";/);
+  });
+
+  // The negative is scoped to SHIPPED source and is deliberately a whole-token
+  // ban, not an import-shaped one: the retired glyph must not survive as a
+  // rendered element, as an import, OR as a parity comment still promising it
+  // (a stale comment is exactly what made this drift readable as intended
+  // behavior). Its historical rationale lives here, in the unshipped test —
+  // which is why the ban can be this absolute without losing the record.
+  it("leaves no trace of lucide's PlugZap in any shipped source file (the drift gmail-connector#61 closes)", () => {
+    const offenders = SHIPPED_SOURCES.filter((f) => f.text.includes("PlugZap")).map((f) => f.rel);
+    expect(offenders).toEqual([]);
+    // Non-vacuity: the scan must actually be reading the file the Connect
+    // action lives in (an empty/mis-rooted walk would pass the line above).
+    expect(SHIPPED_SOURCES.map((f) => f.rel)).toContain("src/setup-client.tsx");
   });
 
   it("keeps the Disconnect button's red unplug glyph (Unplug) — the pair speaks the status-badge language", () => {
