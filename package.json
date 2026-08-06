@@ -54,6 +54,7 @@
       "name": "Cinatra"
     },
     "displayName": "Gmail",
+    "logo": "./cinatra/logo.svg",
     "requestedHostPorts": [
       "authSession",
       "nango",
