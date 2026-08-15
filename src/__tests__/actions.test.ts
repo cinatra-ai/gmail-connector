@@ -40,6 +40,7 @@ import {
   checkGmailStatusAction,
 } from "../actions";
 import { registerGmailConnector, _resetGmailDepsForTests } from "../deps";
+import { GMAIL_ERROR_MESSAGES } from "../gmail-flash";
 
 function redirectTarget(fn: () => Promise<void>): Promise<string> {
   return fn()
@@ -100,7 +101,7 @@ describe("refreshGmailSendAsAddressesAction", () => {
     expect(clearConnectionRecords).toHaveBeenCalledWith("googleOAuth", { scope: "user", userId: "user-1" });
   });
 
-  it("redirects with the generic refresh-failed error code for any other failure, never the raw error text", async () => {
+  it("names the cause instead of collapsing it — a quota failure carries the rate-limited code, never the raw error text", async () => {
     refreshUserGmailSendAsAddresses.mockRejectedValueOnce(
       new Error("Gmail API quota exceeded for project 12345"),
     );
@@ -108,11 +109,155 @@ describe("refreshGmailSendAsAddressesAction", () => {
     const target = await redirectTarget(refreshGmailSendAsAddressesAction);
 
     expect(target).toBe(
-      "/connectors/cinatra-ai/gmail-connector/setup?tab=sender-addresses&error=refresh-failed",
+      "/connectors/cinatra-ai/gmail-connector/setup?tab=sender-addresses&error=gmail-rate-limited",
     );
     // The dynamic error text must never leak into the redirect URL.
     expect(target).not.toContain("quota");
     expect(target).not.toContain("12345");
+  });
+
+  it("keeps refresh-failed for a failure that carries no recognizable signal", async () => {
+    refreshUserGmailSendAsAddresses.mockRejectedValueOnce(new Error("something went sideways"));
+
+    const target = await redirectTarget(refreshGmailSendAsAddressesAction);
+
+    expect(target).toBe(
+      "/connectors/cinatra-ai/gmail-connector/setup?tab=sender-addresses&error=refresh-failed",
+    );
+  });
+
+  it("routes a 403 insufficient-scope failure to the Setup tab, where Reconnect lives", async () => {
+    refreshUserGmailSendAsAddresses.mockRejectedValueOnce(new Error("Insufficient Permission"));
+
+    const target = await redirectTarget(refreshGmailSendAsAddressesAction);
+
+    // No `tab` — the page falls back to Setup, the same fallback the
+    // stale-token reauth path performs, so the Reconnect control is on screen.
+    expect(target).toBe("/connectors/cinatra-ai/gmail-connector/setup?error=scope-missing");
+  });
+
+  it("stays on the Sender-addresses tab for causes the user cannot fix by reconnecting", async () => {
+    refreshUserGmailSendAsAddresses.mockRejectedValueOnce(new Error("Backend Error"));
+
+    const target = await redirectTarget(refreshGmailSendAsAddressesAction);
+
+    expect(target).toBe(
+      "/connectors/cinatra-ai/gmail-connector/setup?tab=sender-addresses&error=gmail-unavailable",
+    );
+  });
+
+  it("emits only allow-listed codes — every redirect target maps to a declared static message", async () => {
+    const thrown = [
+      new Error("Insufficient Permission"),
+      new Error("Invalid Credentials"),
+      new Error("User-rate limit exceeded"),
+      new Error("Backend Error"),
+      new TypeError("fetch failed"),
+      new Error("unmapped failure"),
+    ];
+    const declared = new Set(Object.keys(GMAIL_ERROR_MESSAGES));
+
+    for (const error of thrown) {
+      refreshUserGmailSendAsAddresses.mockRejectedValueOnce(error);
+      const target = await redirectTarget(refreshGmailSendAsAddressesAction);
+      const code = new URL(target, "http://x.invalid").searchParams.get("error");
+      expect(code).not.toBeNull();
+      expect(declared.has(code as string)).toBe(true);
+    }
+  });
+});
+
+/**
+ * The granted-scope pre-check (defect 2). It must short-circuit BEFORE the
+ * Gmail call when — and only when — the granted set was read and proves
+ * gmail.settings.basic is absent.
+ */
+describe("refreshGmailSendAsAddressesAction — granted-scope pre-check", () => {
+  const SETTINGS_BASIC = "https://www.googleapis.com/auth/gmail.settings.basic";
+  const SEND = "https://www.googleapis.com/auth/gmail.send";
+
+  function installWithScopes(getConnection: unknown) {
+    registerGmailConnector({
+      readConnectorConfigFromDatabase: vi.fn((_id, fallback) => fallback),
+      writeConnectorConfigToDatabase: vi.fn(),
+      nango: {
+        getPrimarySavedConnection: vi.fn(() => ({
+          providerConfigKey: "google-mail",
+          connectionId: "conn-1",
+        })) as never,
+        clearConnectionRecords: vi.fn(async () => undefined),
+        getConnection: getConnection as never,
+      },
+      oauth: {
+        getStatus: vi.fn(async () => ({ status: "connected" as const })),
+        apiFetch: vi.fn(),
+        refreshAccessTokenIfNeeded: vi.fn(),
+      },
+      requireSessionUserId: vi.fn(async () => "user-1"),
+    });
+  }
+
+  const connectionWith = (scope?: string) => ({
+    credentials: { type: "OAUTH2", raw: scope === undefined ? {} : { scope } },
+  });
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    _resetGmailDepsForTests();
+  });
+
+  it("names the missing scope before calling Gmail at all", async () => {
+    installWithScopes(vi.fn(async () => connectionWith(SEND)));
+    // Deliberately NO queued outcome for refreshUserGmailSendAsAddresses: the
+    // pre-check must short-circuit, so queueing one would leave it unconsumed
+    // and leak into the next test.
+
+    const target = await redirectTarget(refreshGmailSendAsAddressesAction);
+
+    expect(target).toBe("/connectors/cinatra-ai/gmail-connector/setup?error=scope-missing");
+    // The whole point of a PRE-check: no pointless round trip to Gmail.
+    expect(refreshUserGmailSendAsAddresses).not.toHaveBeenCalled();
+  });
+
+  it("proceeds normally when the scope was granted", async () => {
+    installWithScopes(vi.fn(async () => connectionWith(`${SEND} ${SETTINGS_BASIC}`)));
+    refreshUserGmailSendAsAddresses.mockResolvedValueOnce(undefined);
+
+    const target = await redirectTarget(refreshGmailSendAsAddressesAction);
+
+    expect(target).toBe(
+      "/connectors/cinatra-ai/gmail-connector/setup?tab=sender-addresses&notice=sender-addresses-refreshed",
+    );
+    expect(refreshUserGmailSendAsAddresses).toHaveBeenCalledWith("user-1");
+  });
+
+  it("fails OPEN when the grant is unreadable — the refresh still runs", async () => {
+    installWithScopes(vi.fn(async () => connectionWith(undefined)));
+    refreshUserGmailSendAsAddresses.mockResolvedValueOnce(undefined);
+
+    const target = await redirectTarget(refreshGmailSendAsAddressesAction);
+
+    expect(target).toBe(
+      "/connectors/cinatra-ai/gmail-connector/setup?tab=sender-addresses&notice=sender-addresses-refreshed",
+    );
+    expect(refreshUserGmailSendAsAddresses).toHaveBeenCalledWith("user-1");
+  });
+
+  it("fails OPEN when the probe itself throws, and still classifies the live 403", async () => {
+    installWithScopes(
+      vi.fn(async () => {
+        throw new Error("connection service unreachable");
+      }),
+    );
+    refreshUserGmailSendAsAddresses.mockRejectedValueOnce(new Error("Insufficient Permission"));
+
+    const target = await redirectTarget(refreshGmailSendAsAddressesAction);
+
+    expect(refreshUserGmailSendAsAddresses).toHaveBeenCalledWith("user-1");
+    expect(target).toBe("/connectors/cinatra-ai/gmail-connector/setup?error=scope-missing");
   });
 });
 

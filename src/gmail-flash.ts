@@ -21,8 +21,36 @@ export const GMAIL_NOTICE_MESSAGES = {
   "disconnected": "Gmail account disconnected.",
 } as const;
 
+// Every send-as failure code below is produced by classifyGmailApiFailure in
+// ./gmail-api-error.ts, which picks from a CLOSED set — so the dynamic part of
+// a Gmail failure (status and reason) is folded into the choice of code, and
+// the text the operator reads stays a static, server-trusted string. That is
+// what keeps the codes-only guarantee intact while still naming the cause: the
+// allow-list of codes IS the truncation of Gmail's error surface, and no
+// substring of a Gmail response body ever reaches the URL or the toast.
+//
+// Each message names the cause AND the recourse, because the defect these
+// replace was that "Unable to load Gmail send addresses." left the operator
+// with no next step. `refresh-failed` survives as the terminal code for a
+// failure that carries no recognizable signal at all.
 export const GMAIL_ERROR_MESSAGES = {
   "reauth-required": "Gmail authorization expired. Please reconnect your Gmail account.",
+  "scope-missing":
+    "Gmail did not grant permission to read send addresses (gmail.settings.basic). Reconnect your Gmail account and allow that permission.",
+  "gmail-forbidden":
+    "Gmail refused the request (403). The account may be blocked by a Google Workspace policy from reading its send-as settings.",
+  "gmail-rate-limited":
+    "Gmail is rate-limiting requests (429). Wait a moment, then refresh again.",
+  "gmail-not-found":
+    "Gmail could not find send-as settings for this account (404).",
+  "gmail-bad-request":
+    "Gmail rejected the send-addresses request (400). Reconnect the account; if it repeats, report it.",
+  "gmail-unavailable":
+    "Gmail is temporarily unavailable (server error). Try refreshing again shortly.",
+  "gmail-api-error":
+    "Gmail returned an unexpected API error. Try again; if it repeats, reconnect your Gmail account.",
+  "gmail-unreachable":
+    "Could not reach Gmail (network error). Check connectivity, then refresh again.",
   "refresh-failed": "Unable to load Gmail send addresses.",
   "disconnect-failed": "Unable to disconnect the Gmail account. Please try again.",
 } as const;

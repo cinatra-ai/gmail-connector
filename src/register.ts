@@ -79,6 +79,14 @@ function buildDeps(ctx: ExtensionHostContext): GmailConnectorDeps {
         nango().getPrimarySavedNangoConnection(connectorKey, opts),
       clearConnectionRecords: (connectorKey, opts) =>
         nango().clearNangoConnectionRecords(connectorKey, opts) as Promise<unknown>,
+      // Granted-scope visibility for the send-as pre-check (./gmail-scopes.ts).
+      // The nango-system surface this adapter already resolves carries the
+      // connection read; narrowing it here keeps the connector's own
+      // capability contract to the single method it calls.
+      getConnection: (providerConfigKey, connectionId, options) =>
+        nango().getNangoConnection(providerConfigKey, connectionId, options) as ReturnType<
+          NonNullable<GmailConnectorDeps["nango"]["getConnection"]>
+        >,
     },
     oauth: {
       getStatus: () =>

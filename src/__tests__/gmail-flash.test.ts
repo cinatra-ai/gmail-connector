@@ -11,6 +11,7 @@ import {
   GMAIL_NOTICE_MESSAGES,
   GMAIL_FLASH_TOASTS,
 } from "../gmail-flash";
+import { GMAIL_FAILURE_CODES } from "../gmail-api-error";
 
 describe("gmail-flash", () => {
   it("defines a static message for every notice code", () => {
@@ -26,6 +27,38 @@ describe("gmail-flash", () => {
     expect(GMAIL_ERROR_MESSAGES["refresh-failed"]).toBe(
       "Unable to load Gmail send addresses.",
     );
+  });
+
+  it("has a static message for every code the send-as classifier can return", () => {
+    for (const code of GMAIL_FAILURE_CODES) {
+      expect(GMAIL_ERROR_MESSAGES).toHaveProperty(code);
+    }
+  });
+
+  it("declares no orphan send-as code — every classifier code is reachable and every error code is declared", () => {
+    // `disconnect-failed` belongs to the Disconnect action, not the send-as
+    // path, so it is the one declared code outside the classifier's set.
+    const declared = new Set(Object.keys(GMAIL_ERROR_MESSAGES));
+    const fromClassifier = new Set<string>(GMAIL_FAILURE_CODES);
+    const unexplained = [...declared].filter(
+      (code) => !fromClassifier.has(code) && code !== "disconnect-failed",
+    );
+    expect(unexplained).toEqual([]);
+  });
+
+  it("names a cause and a next step — no send-as message is the bare opaque failure", () => {
+    // The defect (cinatra-ai/cinatra#2767) was one message that named neither.
+    // `refresh-failed` is the deliberate exception: it is the terminal code for
+    // a failure that carries no signal, so it has no cause to name.
+    for (const code of GMAIL_FAILURE_CODES) {
+      if (code === "refresh-failed") continue;
+      const message = GMAIL_ERROR_MESSAGES[code as keyof typeof GMAIL_ERROR_MESSAGES];
+      expect(message).not.toBe("Unable to load Gmail send addresses.");
+      // Either it names a recourse or it names the HTTP status class.
+      expect(/reconnect|try again|wait|refresh|report/i.test(message) || /\d{3}/.test(message)).toBe(
+        true,
+      );
+    }
   });
 
   it("builds one SearchParamToast config entry per code, on the right param, with the right variant", () => {
