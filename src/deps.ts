@@ -51,6 +51,26 @@ export interface GmailNangoCapability {
     connectorKey: GmailGoogleConnectorKey,
     opts?: { scope?: "app" | "user"; userId?: string },
   ): Promise<unknown>;
+  /**
+   * The live connection record from the connection service, including the
+   * OAuth2 credential bundle. `credentials.raw` preserves the provider's own
+   * token response, whose `scope` field lists the scopes Google actually
+   * GRANTED — the only place in this connector's dependency surface where the
+   * granted set is visible (see ./gmail-scopes.ts). Read-only and used solely
+   * for the send-as scope pre-check.
+   *
+   * OPTIONAL on purpose: a host binding that predates this field, or a test
+   * stub that does not need it, must keep working — ./gmail-scopes.ts degrades
+   * to "granted scopes unknown" and lets the live API call decide.
+   */
+  getConnection?(
+    providerConfigKey: string,
+    connectionId: string,
+    options?: { forceRefresh?: boolean; refreshToken?: boolean },
+  ): Promise<{
+    credentials?: { type?: string; raw?: Record<string, unknown>; [k: string]: unknown };
+    [k: string]: unknown;
+  } | null>;
 }
 
 /** Google-OAuth status result surfaced by `oauth.getStatus()`. */

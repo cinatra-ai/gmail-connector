@@ -19,6 +19,8 @@ import { flashHref } from "@cinatra-ai/sdk-extensions/flash-href";
 import { refreshUserGmailSendAsAddresses } from "./index";
 import { getGmailDeps } from "./deps";
 import type { GmailErrorCode, GmailNoticeCode } from "./gmail-flash";
+import { classifyGmailApiFailure, needsReconnect } from "./gmail-api-error";
+import { isSettingsBasicScopeMissing } from "./gmail-scopes";
 
 const GMAIL_PACKAGE_ID = "@cinatra-ai/gmail-connector";
 const SETUP_PATH = "/connectors/cinatra-ai/gmail-connector/setup";
@@ -48,10 +50,36 @@ function gmailSetupRedirect(params: {
   return flashHref(base, { error: params.error, notice: params.notice });
 }
 
+// Route a failure code to the tab that carries its recourse. Codes whose fix is
+// "reconnect" OMIT `tab`, so the page falls back to Setup where the
+// Connect/Reconnect control lives — the same fallback the stale-token path has
+// always performed. Everything else stays on Sender addresses, where the user
+// pressed Refresh.
+function redirectForFailure(code: GmailErrorCode): string {
+  return needsReconnect(code)
+    ? gmailSetupRedirect({ error: code })
+    : gmailSetupRedirect({ error: code, tab: "sender-addresses" });
+}
+
 export async function refreshGmailSendAsAddressesAction() {
   await requireExtensionAction(GMAIL_PACKAGE_ID, "read");
   const { requireSessionUserId, nango } = getGmailDeps();
   const userId = await requireSessionUserId();
+
+  // Pre-check: listing send-as aliases needs `gmail.settings.basic`, and a
+  // requested scope is not a granted one. When the granted set is readable AND
+  // proves the scope is absent, name it before spending a round trip that can
+  // only come back 403. The probe fails OPEN — an unreadable grant proceeds to
+  // Gmail and lets the 403 classification below decide (see ./gmail-scopes.ts).
+  let scopeMissing = false;
+  try {
+    scopeMissing = await isSettingsBasicScopeMissing(userId);
+  } catch {
+    scopeMissing = false;
+  }
+  if (scopeMissing) {
+    redirect(redirectForFailure("scope-missing"));
+  }
 
   try {
     await refreshUserGmailSendAsAddresses(userId);
@@ -63,7 +91,11 @@ export async function refreshGmailSendAsAddressesAction() {
       await nango.clearConnectionRecords("googleOAuth", { scope: "user", userId });
       redirect(gmailSetupRedirect({ error: "reauth-required" }));
     }
-    redirect(gmailSetupRedirect({ error: "refresh-failed", tab: "sender-addresses" }));
+    // Name the real cause. The classifier reduces the thrown value to ONE
+    // allow-listed code, so the toast tells the operator whether to reconnect,
+    // wait, or report an outage — instead of the single opaque "Unable to load
+    // Gmail send addresses." that discarded every distinction.
+    redirect(redirectForFailure(classifyGmailApiFailure(error)));
   }
 
   redirect(gmailSetupRedirect({ notice: "sender-addresses-refreshed", tab: "sender-addresses" }));
