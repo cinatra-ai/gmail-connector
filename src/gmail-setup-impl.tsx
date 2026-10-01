@@ -29,7 +29,7 @@ import {
 } from "./actions";
 import { getGmailDeps } from "./deps";
 import { GMAIL_FLASH_TOASTS } from "./gmail-flash";
-import { Button } from "./components/ui/button";
+import { Button } from "@cinatra-ai/design-primitives";
 // The interactive client islands — the icon-led indigo Connect button (its
 // shared PlugConnected glyph bundled client-side), the right-column Connection
 // status card + its Check probe, and the destructive Disconnect button + its
