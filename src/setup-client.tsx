@@ -18,7 +18,7 @@
 //
 // Both are the direct twins of the github-connector setup islands
 // (cinatra-ai/github-connector s4) — the SAME shared sdk-ui ConnectionStatusCard
-// and the SAME vendored AlertDialog chrome, so the two OAuth-shaped connectors
+// and the same host-served AlertDialog chrome, so the two OAuth-shaped connectors
 // speak one status + disconnect language.
 
 import * as React from "react";
@@ -35,8 +35,8 @@ import { ConnectionStatusCard } from "@cinatra-ai/sdk-ui/connection-status-card"
 import type { ConnectionStatus } from "@cinatra-ai/sdk-ui/connection-status-badge";
 import { NangoUserConnectButton } from "@cinatra-ai/sdk-ui/marketplace";
 import type { NangoFrontendConfig } from "@cinatra-ai/sdk-ui/marketplace";
-import { Button } from "./components/ui/button";
 import {
+  Button,
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -46,7 +46,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
   AlertDialogTrigger,
-} from "./components/ui/dialog";
+} from "@cinatra-ai/design-primitives";
+
 
 // The setup page's primary Connect control (app-connectors.html §II · the
 // icon-led indigo "Connect" pair). Rendered in this CLIENT island rather than
